@@ -1,3 +1,3 @@
-# Google App Scripts Explorations
+# Google Apps Scripts Explorations
 
-Learning more about Google App Scripts.
+Learning more about Google Apps Scripts.
