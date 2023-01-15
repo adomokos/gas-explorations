@@ -1,13 +1,22 @@
 var GoogleDocFinder = (function() {
   const DRIVE_ID = '';
   const SPREADSHEET_ID = '';
-  const RANGE = '';
+  const RANGE = 'E1:G';
+
+  const matches = {
+    NO_MATCH: "no_match",
+    MATCH_FOUND: "match_found",
+    MULTIPLE_MATCHES: "multiple_matches",
+  };
 
   var googleDocFinder = {};
   googleDocFinder.name = 'GoogleDocFinder';
 
   googleDocFinder.findAmountAndInvoice = function(invoiceNumber, amount) {
-    var matchResult = {};
+    var matchResult = {
+      invoiceNumber: invoiceNumber,
+      amount: amount,
+    };
 
     const folder = DriveApp.getFolderById(DRIVE_ID);
     var files = folder.searchFiles(`fullText contains "${invoiceNumber}" and fullText contains "${amount}"`);
@@ -18,29 +27,38 @@ var GoogleDocFinder = (function() {
       var fileId = file.getId();
       var fileName = file.getName();
       results.push(`${fileId} - ${fileName}`)
+    }
+  
+    matchResult.results = results;
+    switch (results.length) {
+      case 1:
+        matchResult.outcome = matches.MATCH_FOUND;
+        // Logger.log(`MATCH FOUND - ${results[0]}`)
+        break;
+      case 2:
+        matchResult.outcome = matches.MULTIPLE_MATCHES;
+      default:
+        matchResult.outcome = matches.NO_MATCH;
+    }
 
-    }
-    if(results.length == 0) {
-      matchResult.message = 'No match found';
-      matchResult.results = results;
-      // Logger.log('No match found')
-      return matchResult;
-    }
-    if (results.length == 1) {
-      matchResult.message = 'MATCH FOUND';
-      matchResult.results = results;
-      // Logger.log(`MATCH FOUND - ${results[0]}`)
-      return matchResult;
-    }
-    else {
-      matchResult.message = "More than 1 result found";
-      matchResult.results = results;
-      // Logger.log(`More than 1 result found: ${results}`)
-      return matchResult;
-    }
+    return matchResult;
   };
 
-  googleDocFinder.readSpreadsheetData = function() {
+  // This should be a private function
+  googleDocFinder.writeResult = function(range, currentCellRow, result) {
+    var backgroundColor = "#FFFFFF";
+    // Color the background cell of matches
+    if (result.outcome == matches.MATCH_FOUND) {
+      backgroundColor = "#ccebd4";
+    }
+
+    var currentCell = range.getCell(currentCellRow,3);
+    currentCell.setValue(result.outcome);
+    currentCell.setBackground(backgroundColor);
+    Logger.log(`Match invoice: ${result.invoiceNumber} and amount - ${result.amount}: ${result.outcome}`);
+  };
+
+  googleDocFinder.runSpreadsheetData = function() {
     var spreadSheet = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheet = spreadSheet.getSheetByName('Sheet1');
     var range = sheet.getRange(RANGE);
@@ -54,16 +72,15 @@ var GoogleDocFinder = (function() {
     Logger.log('num col: ' + numCols);
 
     for (var i = 0; i < 100; i++) {
-      var currentCell = i+1;
-      var invoice = range.getCell(currentCell,1).getValue();
-      var amount = range.getCell(currentCell, 2).getValue();
+      var currentCellRow = i+1;
+      var invoice = range.getCell(currentCellRow,1).getValue();
+      var amount = range.getCell(currentCellRow, 2).getValue();
       if (invoice == "" && amount == "") {
         continue;
       }
       // Do the actual matching
       var result = googleDocFinder.findAmountAndInvoice(invoice, amount);
-      range.getCell(currentCell,3).setValue(result.message);
-      Logger.log(`Match invoice: ${invoice} and amount - ${amount}: ${result.message}`);
+      googleDocFinder.writeResult(range, currentCellRow, result);
     }
   };
   return googleDocFinder;
@@ -75,5 +92,5 @@ function runMatching() {
   Logger.log(result.message);
   Logger.log(result.results);
   */
-  GoogleDocFinder.readSpreadsheetData()
+  GoogleDocFinder.runSpreadsheetData()
 }
