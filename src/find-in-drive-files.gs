@@ -47,7 +47,7 @@ var GoogleDocFinder = (function() {
       var file = files.next();
       results.push(file)
     }
-
+  
     matchResult.results = results;
 
     switch (results.length) {
@@ -72,9 +72,8 @@ var GoogleDocFinder = (function() {
 
     if (fileMatches.length == 1) {
       var fileMatch = fileMatches[0];
-      backgroundColor = "#ccebd4";
       currentCell.setValue(fileMatch.outcome);
-      currentCell.setBackground(backgroundColor);
+      currentCell.setBackground("#CCEDB4");
 
       fileResultCell.setValue(fileMatch.results);
 
@@ -87,12 +86,12 @@ var GoogleDocFinder = (function() {
 
     if (fileMatches.length > 0) {
         currentCell.setValue('multiple_matches');
-        currentCell.setBackground(backgroundColor);
+        currentCell.setBackground("#FFFDE7");
 
-        var fileNames = fileMatches.results.map(function(result) {
-          result.results[0]
-        })
-        fileResultCell.setValue(fileNames);
+        var fileNames = fileMatches.map(function(fileMatch) {
+          return fileMatch.results[0].getName()
+        });
+        fileResultCell.setValue(fileNames.toString());
 
         return;
     }
