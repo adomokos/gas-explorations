@@ -1,7 +1,7 @@
 var GoogleDocFinder = (function() {
   const DRIVE_ID = '';
   const SPREADSHEET_ID = '';
-  const RANGE = 'E1:G';
+  const RANGE = 'E1:H';
 
   const matches = {
     NO_MATCH: "no_match",
@@ -12,24 +12,44 @@ var GoogleDocFinder = (function() {
   var googleDocFinder = {};
   googleDocFinder.name = 'GoogleDocFinder';
 
-  googleDocFinder.findAmountAndInvoice = function(invoiceNumber, amount) {
+  googleDocFinder.collectFolders = function() {
+    var rootFolder = DriveApp.getFolderById(DRIVE_ID);
+    var folders = [];
+
+    function iterateSubFolders(callingFolder, callingPath) {
+      folders.push(callingFolder);
+      var callingFolderName = callingFolder.getName();
+      var callingFolderFullPath = callingPath + callingFolderName + "/";
+      // Logger.log(callingFolderFullPath);
+
+      var childSubFolders = callingFolder.getFolders();
+      while (childSubFolders.hasNext()) {
+          var nextSubFolder = childSubFolders.next();
+          iterateSubFolders(nextSubFolder, callingFolderFullPath);
+      }
+    }
+
+    iterateSubFolders(rootFolder, "/");
+
+    return folders;
+  }
+
+  googleDocFinder.findAmountAndInvoice = function(folder, invoiceNumber, amount) {
     var matchResult = {
       invoiceNumber: invoiceNumber,
       amount: amount,
     };
 
-    const folder = DriveApp.getFolderById(DRIVE_ID);
     var files = folder.searchFiles(`fullText contains "${invoiceNumber}" and fullText contains "${amount}"`);
 
     var results = []
     while (files.hasNext()) {
       var file = files.next();
-      var fileId = file.getId();
-      var fileName = file.getName();
-      results.push(`${fileId} - ${fileName}`)
+      results.push(file)
     }
-  
+
     matchResult.results = results;
+
     switch (results.length) {
       case 1:
         matchResult.outcome = matches.MATCH_FOUND;
@@ -45,17 +65,40 @@ var GoogleDocFinder = (function() {
   };
 
   // This should be a private function
-  googleDocFinder.writeResult = function(range, currentCellRow, result) {
+  googleDocFinder.writeResult = function(range, currentCellRow, fileMatches) {
     var backgroundColor = "#FFFFFF";
-    // Color the background cell of matches
-    if (result.outcome == matches.MATCH_FOUND) {
+    var currentCell = range.getCell(currentCellRow,3);
+    var fileResultCell = range.getCell(currentCellRow, 4);
+
+    if (fileMatches.length == 1) {
+      var fileMatch = fileMatches[0];
       backgroundColor = "#ccebd4";
+      currentCell.setValue(fileMatch.outcome);
+      currentCell.setBackground(backgroundColor);
+
+      fileResultCell.setValue(fileMatch.results);
+
+      var result = fileMatches[0];
+      Logger.log(`Match invoice: ${result.invoiceNumber} and amount` +
+      `- ${result.amount}: ${result.outcome} - ${result.results}`);
+
+      return;
     }
 
-    var currentCell = range.getCell(currentCellRow,3);
-    currentCell.setValue(result.outcome);
+    if (fileMatches.length > 0) {
+        currentCell.setValue('multiple_matches');
+        currentCell.setBackground(backgroundColor);
+
+        var fileNames = fileMatches.results.map(function(result) {
+          result.results[0]
+        })
+        fileResultCell.setValue(fileNames);
+
+        return;
+    }
+
+    currentCell.setValue('no_match');
     currentCell.setBackground(backgroundColor);
-    Logger.log(`Match invoice: ${result.invoiceNumber} and amount - ${result.amount}: ${result.outcome}`);
   };
 
   googleDocFinder.runSpreadsheetData = function() {
@@ -71,6 +114,9 @@ var GoogleDocFinder = (function() {
     Logger.log('num row: ' + numRows);
     Logger.log('num col: ' + numCols);
 
+    // Get all folders with subfolders
+    var folders = googleDocFinder.collectFolders();
+
     for (var i = 0; i < 100; i++) {
       var currentCellRow = i+1;
       var invoice = range.getCell(currentCellRow,1).getValue();
@@ -78,9 +124,17 @@ var GoogleDocFinder = (function() {
       if (invoice == "" && amount == "") {
         continue;
       }
-      // Do the actual matching
-      var result = googleDocFinder.findAmountAndInvoice(invoice, amount);
-      googleDocFinder.writeResult(range, currentCellRow, result);
+
+      var fileMatches = [];
+      folders.forEach(function(folder) {
+        var result = googleDocFinder.findAmountAndInvoice(folder, invoice, amount);
+        if ((result.outcome === matches.NO_MATCH) == false) {
+          fileMatches.push(result);
+          // Logger.log(`---- ${fileMatches}`);
+        }
+      });
+
+      googleDocFinder.writeResult(range, currentCellRow, fileMatches);
     }
   };
   return googleDocFinder;
@@ -92,5 +146,5 @@ function runMatching() {
   Logger.log(result.message);
   Logger.log(result.results);
   */
-  GoogleDocFinder.runSpreadsheetData()
+  GoogleDocFinder.runSpreadsheetData();
 }
